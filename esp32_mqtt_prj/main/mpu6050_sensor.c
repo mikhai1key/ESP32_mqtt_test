@@ -91,19 +91,6 @@ esp_err_t i2c_master_init(void)
     return i2c_driver_install(i2c_master_port, conf.mode, I2C_MASTER_RX_BUF_DISABLE, I2C_MASTER_TX_BUF_DISABLE, 0);
 }
 
-/**
- * @brief test code to operate on MPU6050 sensor
- *
- * 1. set operation mode(e.g One time L-resolution mode)
- * _________________________________________________________________
- * | start | slave_addr + wr_bit + ack | write 1 byte + ack  | stop |
- * --------|---------------------------|---------------------|------|
- * 2. wait more than 24 ms
- * 3. read data
- * __________________________________________________________________
- * | start | slave_addr + rd_bit + ack | read 1 byte + nack |  stop |
- * --------|---------------------------|--------------------|-------|
- */
  esp_err_t i2c_master_sensor_test(i2c_port_t i2c_num, uint8_t *data_h, uint8_t *data_l)
 {
     int ret;
@@ -181,7 +168,6 @@ esp_err_t i2c_master_init(void)
 	 return ret;
  }
 
-
  esp_err_t i2c_master_write_reg8(i2c_port_t i2c_num, uint8_t reg_addr , uint8_t data)
  {
 	 int ret;
@@ -221,6 +207,7 @@ esp_err_t i2c_master_init(void)
 	 return ret;
  }
 
+
  esp_err_t i2c_master_read_reg16(i2c_port_t i2c_num, uint8_t reg_addr , uint8_t *data_h, uint8_t *data_l)
  {
 	 int ret;
@@ -246,6 +233,38 @@ esp_err_t i2c_master_init(void)
 	 return ret;
  }
 
+ /**
+   * @brief  Get data from mpu6050
+   * @param  reg_addr: start reg of data block
+   *   		 *data: point to structure SD_MPU6050
+   * @retval esp_err_t: ESP error
+   */
+
+ esp_err_t i2c_master_read_mpu6050(i2c_port_t i2c_num, uint8_t *data)
+ {
+	 int ret;
+	 const uint8_t data_lenght = 13;
+	 	 i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+	 	 i2c_master_start(cmd);
+	 	 i2c_master_write_byte(cmd, (MPU6050_SENSOR_ADDR << 1) | WRITE_BIT, ACK_CHECK_EN);
+	 	 i2c_master_write_byte(cmd, MPU6050_ACCEL_XOUT_H, ACK_CHECK_EN);
+	 	 i2c_master_stop(cmd);
+	 	 ret = i2c_master_cmd_begin(i2c_num, cmd, 1000 / portTICK_RATE_MS);
+	 	 i2c_cmd_link_delete(cmd);
+	 	 if (ret != ESP_OK) {
+	 	     return ret;
+	 	 }
+	 	 vTaskDelay(30 / portTICK_RATE_MS);
+	 	 cmd = i2c_cmd_link_create();
+	 	 i2c_master_start(cmd);
+	 	 i2c_master_write_byte(cmd, (MPU6050_SENSOR_ADDR << 1) | READ_BIT, ACK_CHECK_EN);
+	 	 i2c_master_read(cmd, data, data_lenght - 1, ACK_VAL);
+	 	 i2c_master_read_byte(cmd, data + data_lenght, NACK_VAL);
+	 	 i2c_master_stop(cmd);
+	 	 ret = i2c_master_cmd_begin(i2c_num, cmd, 1000 / portTICK_RATE_MS);
+	 	 i2c_cmd_link_delete(cmd);
+	 	 return ret;
+ }
 
  esp_err_t i2c_master_read_gyro(i2c_port_t i2c_num, uint16_t *data_x, uint16_t *data_y, uint16_t *data_z)
  {

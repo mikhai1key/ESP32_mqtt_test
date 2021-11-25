@@ -32,17 +32,20 @@
 #include "driver/i2c.h"
 #include "mpu6050_sensor.h"
 
-#define DELAY_TIME_BETWEEN_ITEMS_MS 1000 /*!< delay time between different test items */
+#define DELAY_TIME_BETWEEN_ITEMS_MS 1000
+#define MQTT_POST_DELAY 1000
 
 uint8_t sensor_data_h, sensor_data_l;
 uint16_t gyrox_data, gyroy_data, gyroz_data;
 char gyrox_ch[6], gyroy_ch[6], gyroz_ch[6];
 char ch_mes_buf[100];
-SemaphoreHandle_t print_mux = NULL;
-int msgs_id;
+SemaphoreHandle_t mqtt_mux = NULL;
 esp_mqtt_client_handle_t my_client;
 
 static const char *TAG = "MQTT_EXAMPLE";
+static const char *START = "start";
+static const char *STOP = "stop";
+static const char *my_topic = "esp32_topic";
 
 
 static void log_error_if_nonzero(const char * message, int error_code)
@@ -52,7 +55,7 @@ static void log_error_if_nonzero(const char * message, int error_code)
     }
 }
 
-/* reverse:  переворачиваем строку s на месте */
+/*K&R reverse function*/
 void my_reverse(char s[])
 {
     int i, j;
@@ -64,17 +67,17 @@ void my_reverse(char s[])
         s[j] = c;
     }
 }
-
+/*K&R itoa function*/
 void my_itoa(int n, char s[])
 {
     int i, sign;
 
-    if ((sign = n) < 0)  /* записываем знак */
-        n = -n;          /* делаем n положительным числом */
+    if ((sign = n) < 0)
+        n = -n;
     i = 0;
-    do {       /* генерируем цифры в обратном порядке */
-        s[i++] = n % 10 + '0';   /* берем следующую цифру */
-    } while ((n /= 10) > 0);     /* удаляем */
+    do {
+        s[i++] = n % 10 + '0';
+    } while ((n /= 10) > 0);
     if (sign < 0)
         s[i++] = '-';
     s[i] = '\0';
@@ -87,21 +90,15 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
     int msg_id;
     // your_context_t *context = event->context;
     msg_id = 0;
-    //msg_id = esp_mqtt_client_publish(client, "/mytopic/qos1", ch_mes_buf, 0, 1, 0);
+
     switch (event->event_id) {
         case MQTT_EVENT_CONNECTED:
             ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
-            msg_id = esp_mqtt_client_publish(client, "/mytopic/qos1", "ESP32 is connected", 0, 1, 0);
+            msg_id = esp_mqtt_client_publish(client, my_topic, "ESP32 is connected", 0, 1, 0);
             ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
 
-            msg_id = esp_mqtt_client_subscribe(client, "/mytopic/qos0", 0);
+            msg_id = esp_mqtt_client_subscribe(client, my_topic, 0);
             ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
-
-            msg_id = esp_mqtt_client_subscribe(client, "/mytopic/qos1", 1);
-            ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
-
-            msg_id = esp_mqtt_client_unsubscribe(client, "/mytopic/qos1");
-            ESP_LOGI(TAG, "sent unsubscribe successful, msg_id=%d", msg_id);
             break;
         case MQTT_EVENT_DISCONNECTED:
             ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
@@ -109,7 +106,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 
         case MQTT_EVENT_SUBSCRIBED:
             ESP_LOGI(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
-            //msg_id = esp_mqtt_client_publish(client, "/mytopic/qos0", "data", 0, 0, 0);
+            msg_id = esp_mqtt_client_publish(client, my_topic, "Hello", 0, 0, 0);
             ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
             break;
         case MQTT_EVENT_UNSUBSCRIBED:
@@ -122,7 +119,6 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
             ESP_LOGI(TAG, "MQTT_EVENT_DATA");
             printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
             printf("DATA=%.*s\r\n", event->data_len, event->data);
-            //msg_id = esp_mqtt_client_publish(client, "/mytopic/qos1", mes2pub, 0, 1, 0);
             break;
         case MQTT_EVENT_ERROR:
             ESP_LOGI(TAG, "MQTT_EVENT_ERROR");
@@ -138,6 +134,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
             ESP_LOGI(TAG, "Other event id:%d", event->event_id);
             break;
     }
+
     return ESP_OK;
 }
 
@@ -192,44 +189,47 @@ static void mpu6050_task(void *arg)
 	{
 		ESP_LOGI(TAG, "TASK[%d] test cnt: %d", task_idx, cnt++);
 	    ret =  i2c_master_read_gyro(I2C_NUM_0, &gyrox_data, &gyroy_data, &gyroz_data);
-	    my_itoa((int16_t)gyrox_data,gyrox_ch);
-	    my_itoa((int16_t)gyroy_data,gyroy_ch);
-	    my_itoa((int16_t)gyroz_data,gyroz_ch);
-	    snprintf(&ch_mes_buf[0], sizeof ch_mes_buf, "gx:%s, gy: %s, gz: %s ", gyrox_ch, gyroy_ch, gyroz_ch);
-	    ESP_LOGI(TAG, "%s", ch_mes_buf);
-	    xSemaphoreTake(print_mux, portMAX_DELAY);
-	    if (ret == ESP_ERR_TIMEOUT) {
+	    //xSemaphoreTake(print_mux, portMAX_DELAY);
+	    if (ret == ESP_ERR_TIMEOUT)
+	    {
 	    	ESP_LOGE(TAG, "I2C Timeout");
 	        } else if (ret == ESP_OK) {
-	        	    ESP_LOGI(TAG, "MPU6050 gyrox: %i, gyroy: %i, gyroz: %i", (int16_t) gyrox_data, (int16_t) gyroy_data, (int16_t) gyroz_data);
-	        	    //msg_id = esp_mqtt_client_publish(client, "/mytopic/qos1", "data_3", 0, 1, 0);
-	        } else {
+	        	 my_itoa((int16_t)gyrox_data,gyrox_ch);
+	        	 my_itoa((int16_t)gyroy_data,gyroy_ch);
+	        	 my_itoa((int16_t)gyroz_data,gyroz_ch);
+	        	 snprintf(&ch_mes_buf[0], sizeof ch_mes_buf, "gx:%s, gy: %s, gz: %s ", gyrox_ch, gyroy_ch, gyroz_ch);
+	        	 ESP_LOGI(TAG, "%s", ch_mes_buf);
+	        }
+	        else
+	        {
 	            ESP_LOGW(TAG, "%s: No ack, sensor not connected...skip...", esp_err_to_name(ret));
 	        }
-	        xSemaphoreGive(print_mux);
+	        //xSemaphoreGive(print_mux);
 	        vTaskDelay((DELAY_TIME_BETWEEN_ITEMS_MS * (task_idx + 1)) / portTICK_RATE_MS);
 	        //---------------------------------------------------
 	    }
-	        vSemaphoreDelete(print_mux);
 	        vTaskDelete(NULL);
 }
 
-static void mqtt_send_sen(void *arg)
+static void mqtt_task(void *arg)
 {
 	int msg_id = 0;
 	//esp_mqtt_client_handle_t client = event->client;
 	while(1)
 	{
-		//int msg_id = esp_mqtt_client_publish(mqtt_client, CONFIG_EXAMPLE_PUBLISH_TOPIC, msg, len, 2, 0);
-		msg_id = esp_mqtt_client_publish(my_client, "/mytopic/qos1", ch_mes_buf, 0, 1, 0);
-		vTaskDelay(1000 / portTICK_PERIOD_MS);
+		//xSemaphoreTake(mqtt_mux, portMAX_DELAY);
+		msg_id = esp_mqtt_client_publish(my_client, my_topic, ch_mes_buf, 0, 1, 0);
+		ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
+		//xSemaphoreGive(mqtt_mux);
+		vTaskDelay(MQTT_POST_DELAY / portTICK_PERIOD_MS);
 	}
+	vSemaphoreDelete(mqtt_mux);
 	vTaskDelete(NULL);
 }
 
 void app_main(void)
 {
-	print_mux = xSemaphoreCreateMutex();
+	mqtt_mux = xSemaphoreCreateMutex();
     ESP_LOGI(TAG, "[APP] Startup..");
     ESP_LOGI(TAG, "[APP] Free memory: %d bytes", esp_get_free_heap_size());
     ESP_LOGI(TAG, "[APP] IDF version: %s", esp_get_idf_version());
@@ -245,7 +245,6 @@ void app_main(void)
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
-
 
     /* This helper function configures Wi-Fi or Ethernet, as selected in menuconfig.
      * Read "Establishing Wi-Fi or Ethernet Connection" section in
@@ -271,7 +270,8 @@ void app_main(void)
     	}
     }
     ESP_ERROR_CHECK(mpu6050_init(I2C_NUM_0));
+
     mqtt_app_start();
     xTaskCreate(mpu6050_task, "mpu6050_test_task", 1024 * 2, (void *)0, 10, NULL);
-    xTaskCreate(mqtt_send_sen, "mqtt_send_sen", 1024 * 2, (void *)1, 10, NULL);
+    xTaskCreate(mqtt_task, "mqtt_task", 1024 * 2, (void *)0, 10, NULL);
 }

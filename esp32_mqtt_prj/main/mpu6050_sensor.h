@@ -121,4 +121,6 @@ esp_err_t i2c_master_write_reg16(i2c_port_t i2c_num, uint8_t reg_addr , uint8_t 
 
 esp_err_t i2c_master_read_reg8(i2c_port_t i2c_num, uint8_t reg_addr , uint8_t *data);
 
+esp_err_t i2c_master_read_mpu6050(i2c_port_t i2c_num, uint8_t *data);
+
 #endif /* MAIN_MPU6050_SENSOR_H_ */
