@@ -9,3 +9,9 @@
 
 # Undo-tree save-files
 *.~undo-tree
+
+# build files
+/esp32_mqtt_prj/build/*
+
+# old files
+*.old
