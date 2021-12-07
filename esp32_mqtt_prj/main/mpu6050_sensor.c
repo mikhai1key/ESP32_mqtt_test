@@ -7,6 +7,8 @@
 
 #include "mpu6050_sensor.h"
 
+// ============================= Definition ============================= //
+
 #define I2C_MASTER_SCL_IO 22               					/*!< gpio number for I2C master clock */
 #define I2C_MASTER_SDA_IO 21              			 		/*!< gpio number for I2C master data  */
 #define I2C_MASTER_NUM 	I2C_NUM_0							/*!< I2C port number for master dev */
@@ -14,19 +16,13 @@
 #define I2C_MASTER_TX_BUF_DISABLE 0                         /*!< I2C master doesn't need buffer */
 #define I2C_MASTER_RX_BUF_DISABLE 0                         /*!< I2C master doesn't need buffer */
 
-#define DATA_LENGTH 512                  /*!< Data buffer length of test buffer */
-#define RW_TEST_LENGTH 128               /*!< Data length for r/w test, [0,DATA_LENGTH] */
-#define DELAY_TIME_BETWEEN_ITEMS_MS 1000 /*!< delay time between different test items */
+#define DATA_LENGTH 512                  					/*!< Data buffer length of test buffer */
+#define RW_TEST_LENGTH 128               					/*!< Data length for r/w test, [0,DATA_LENGTH] */
+#define DELAY_TIME_BETWEEN_ITEMS_MS 1000 					/*!< delay time between different test items */
 
-#define MPU_REG_GYROX 				0x43								/**/
-#define MPU_REG_GYROY	 			0x45								/**/
-#define MPU_REG_GYROZ 				0x47								/**/
-#define MPU_REG_TEST 				0x10								/**/
-#define MPU_REG_WHO_A_MI	 		0x75								/**/
-
-#define MPU6050_SENSOR_ADDR 		MPU6050_SENSOR_ADDR0  			/*!< slave address for MPU6050 sensor */
-#define MPU6050_SENSOR_ADDR0 		0x68  							/*!< slave address for MPU6050 sensor */
-#define MPU6050_SENSOR_ADDR1 		0x69  							/*!< slave address for MPU6050 sensor */
+#define MPU6050_SENSOR_ADDR 		MPU6050_SENSOR_ADDR0  	/*!< slave address for MPU6050 sensor */
+#define MPU6050_SENSOR_ADDR0 		0x68  					/*!< slave address for MPU6050 sensor */
+#define MPU6050_SENSOR_ADDR1 		0x69  					/*!< slave address for MPU6050 sensor */
 /* MPU6050 registers */
 #define MPU6050_AUX_VDDIO			0x01
 #define MPU6050_SMPLRT_DIV			0x19
@@ -63,15 +59,20 @@
 #define MPU6050_WHO_AM_I			0x75
 
 
-#define MPU6050_CMD_START CONFIG_BH1750_OPMODE   			/*!< Operation mode */
-#define ESP_SLAVE_ADDR CONFIG_I2C_SLAVE_ADDRESS 			/*!< ESP32 slave address, you can set any 7bit value */
-#define WRITE_BIT I2C_MASTER_WRITE              			/*!< I2C master write */
-#define READ_BIT I2C_MASTER_READ                			/*!< I2C master read */
-#define ACK_CHECK_EN 0x1                        			/*!< I2C master will check ack from slave*/
-#define ACK_CHECK_DIS 0x0                       			/*!< I2C master will not check ack from slave */
-#define ACK_VAL 0x0                             			/*!< I2C ack value */
-#define NACK_VAL 0x1                            			/*!< I2C nack value */
+#define MPU6050_CMD_START 			CONFIG_BH1750_OPMODE   			/*!< Operation mode */
+#define ESP_SLAVE_ADDR 				CONFIG_I2C_SLAVE_ADDRESS 		/*!< ESP32 slave address, you can set any 7bit value */
+#define WRITE_BIT 					I2C_MASTER_WRITE              	/*!< I2C master write */
+#define READ_BIT 					I2C_MASTER_READ                	/*!< I2C master read */
+#define ACK_CHECK_EN			 	0x1                        		/*!< I2C master will check ack from slave*/
+#define ACK_CHECK_DIS 				0x0                       		/*!< I2C master will not check ack from slave */
+#define ACK_VAL 					0x0   	                        /*!< I2C ack value */
+#define NACK_VAL 					0x1                            	/*!< I2C nack value */
 
+// ============================= Implementation ============================= //
+/**
+ * @brief	Initializes the I2C for MPU6050
+ * @retval 	esp_err_t: 	ESP error
+*/
 esp_err_t i2c_master_init(void)
 {
     int i2c_master_port = I2C_MASTER_NUM;
@@ -90,7 +91,13 @@ esp_err_t i2c_master_init(void)
     }
     return i2c_driver_install(i2c_master_port, conf.mode, I2C_MASTER_RX_BUF_DISABLE, I2C_MASTER_TX_BUF_DISABLE, 0);
 }
-
+/**
+ * @brief	Read MPU6050_WHO_AM_I register
+ * @param  	i2c_num: 	i2c port number
+ * 			*data_h: 	pointer to high byte data
+ * 			*data_l: 	pointer to low byte data
+ * @retval 	esp_err_t: 	ESP error
+*/
  esp_err_t i2c_master_sensor_test(i2c_port_t i2c_num, uint8_t *data_h, uint8_t *data_l)
 {
     int ret;
@@ -99,7 +106,7 @@ esp_err_t i2c_master_init(void)
     // send sensor_id
     i2c_master_write_byte(cmd, MPU6050_SENSOR_ADDR << 1 | WRITE_BIT, ACK_CHECK_EN);
     // send reg_addr
-    i2c_master_write_byte(cmd, MPU_REG_WHO_A_MI, ACK_CHECK_EN);
+    i2c_master_write_byte(cmd, MPU6050_WHO_AM_I, ACK_CHECK_EN);
     i2c_master_stop(cmd);
     ret = i2c_master_cmd_begin(i2c_num, cmd, 1000 / portTICK_RATE_MS);
     i2c_cmd_link_delete(cmd);
@@ -116,7 +123,11 @@ esp_err_t i2c_master_init(void)
     i2c_cmd_link_delete(cmd);
     return ret;
 }
-
+/**
+ * @brief	Write MPU6050 8-bit register
+ * @param  	i2c_num: 	i2c port number
+ * @retval 	esp_err_t: 	ESP error
+*/
  esp_err_t i2c_master_write_reg16(i2c_port_t i2c_num, uint8_t reg_addr , uint8_t data_h, uint8_t data_l)
  {
 	 int ret;
@@ -125,7 +136,7 @@ esp_err_t i2c_master_init(void)
 	 // send sensor_id
 	 i2c_master_write_byte(cmd, MPU6050_SENSOR_ADDR << 1 | WRITE_BIT, ACK_CHECK_EN);
 	 // send reg_addr
-	 i2c_master_write_byte(cmd, MPU_REG_WHO_A_MI, ACK_CHECK_EN);
+	 i2c_master_write_byte(cmd, MPU6050_WHO_AM_I, ACK_CHECK_EN);
 	 i2c_master_stop(cmd);
 	 ret = i2c_master_cmd_begin(i2c_num, cmd, 1000 / portTICK_RATE_MS);
 	 i2c_cmd_link_delete(cmd);
@@ -144,7 +155,11 @@ esp_err_t i2c_master_init(void)
 	 i2c_cmd_link_delete(cmd);
 	 return ret;
  }
-
+/**
+ * @brief	Write MPU6050 8-bit register
+ * @param  	i2c_num: 	i2c port number
+ * @retval 	esp_err_t: 	ESP error
+*/
  esp_err_t mpu6050_init(i2c_port_t i2c_num)
  {
 	 int ret = 0;
@@ -167,7 +182,13 @@ esp_err_t i2c_master_init(void)
 	 vTaskDelay(30 / portTICK_RATE_MS);
 	 return ret;
  }
-
+/**
+ * @brief	Write MPU6050 8-bit register
+ * @param  	i2c_num: 	i2c port number
+ *   		reg_addr: 	register address
+ *   		data:		data to write
+ * @retval 	esp_err_t: 	ESP error
+*/
  esp_err_t i2c_master_write_reg8(i2c_port_t i2c_num, uint8_t reg_addr , uint8_t data)
  {
 	 int ret;
@@ -182,7 +203,13 @@ esp_err_t i2c_master_init(void)
 	 return ret;
 
  }
-
+/**
+ * @brief	Read MPU6050 8-bit register
+ * @param  	i2c_num: 	i2c port number
+ *   		reg_addr: 	register address
+ *   		*data:		pointer to data
+ * @retval 	esp_err_t: ESP error
+*/
  esp_err_t i2c_master_read_reg8(i2c_port_t i2c_num, uint8_t reg_addr , uint8_t *data)
  {
 	 int ret;
@@ -207,6 +234,14 @@ esp_err_t i2c_master_init(void)
 	 return ret;
  }
 
+/**
+ * @brief	Read MPU6050 16-bit register
+ * @param  	i2c_num: 	i2c port number
+ *   		reg_addr: 	register address
+ *   		*data_h:	pointer to low byte data
+ *   		*data_l:	pointer to high byte data
+ * @retval 	esp_err_t: ESP error
+*/
 
  esp_err_t i2c_master_read_reg16(i2c_port_t i2c_num, uint8_t reg_addr , uint8_t *data_h, uint8_t *data_l)
  {
@@ -233,12 +268,12 @@ esp_err_t i2c_master_init(void)
 	 return ret;
  }
 
- /**
-   * @brief  Get data from mpu6050
-   * @param  reg_addr: start reg of data block
-   *   		 *data: point to structure SD_MPU6050
-   * @retval esp_err_t: ESP error
-   */
+/**
+ * @brief  	Read all MPU6050 data
+ * @param  	i2c_num: i2c port number
+ *   		*data: Pointer to data buffer FIXME: pointer to MPU6050 structure
+ * @retval 	esp_err_t: ESP error
+*/
 
  esp_err_t i2c_master_read_mpu6050(i2c_port_t i2c_num, uint8_t *data)
  {
@@ -265,7 +300,14 @@ esp_err_t i2c_master_init(void)
 	 	 i2c_cmd_link_delete(cmd);
 	 	 return ret;
  }
-
+/**
+ * @brief  	Read MPU6050 gyroscope data
+ * @param  	i2c_num: i2c port number
+ *   		*data_x: pointer to gyroscope x channel
+ *   		*data_y: pointer to gyroscope y channel
+ *   		*data_z: pointer to gyroscope z channel
+ * @retval 	esp_err_t: ESP error
+*/
  esp_err_t i2c_master_read_gyro(i2c_port_t i2c_num, uint16_t *data_x, uint16_t *data_y, uint16_t *data_z)
  {
 	uint8_t sen_data_h = 0, sen_data_l = 0;

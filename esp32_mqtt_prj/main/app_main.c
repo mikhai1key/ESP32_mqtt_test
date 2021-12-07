@@ -37,14 +37,11 @@
 
 uint8_t sensor_data_h, sensor_data_l;
 uint16_t gyrox_data, gyroy_data, gyroz_data;
-char gyrox_ch[6], gyroy_ch[6], gyroz_ch[6];
 char ch_mes_buf[100];
-SemaphoreHandle_t mqtt_mux = NULL;
+SemaphoreHandle_t char_mux = NULL;
 esp_mqtt_client_handle_t my_client;
 
 static const char *TAG = "MQTT_EXAMPLE";
-static const char *START = "start";
-static const char *STOP = "stop";
 static const char *my_topic = "esp32_topic";
 
 
@@ -71,7 +68,6 @@ void my_reverse(char s[])
 void my_itoa(int n, char s[])
 {
     int i, sign;
-
     if ((sign = n) < 0)
         n = -n;
     i = 0;
@@ -88,7 +84,6 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 {
     esp_mqtt_client_handle_t client = event->client;
     int msg_id;
-    // your_context_t *context = event->context;
     msg_id = 0;
 
     switch (event->event_id) {
@@ -127,7 +122,6 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
                 log_error_if_nonzero("reported from tls stack", event->error_handle->esp_tls_stack_err);
                 log_error_if_nonzero("captured as transport's socket errno",  event->error_handle->esp_transport_sock_errno);
                 ESP_LOGI(TAG, "Last errno string (%s)", strerror(event->error_handle->esp_transport_sock_errno));
-
             }
             break;
         default:
@@ -189,47 +183,47 @@ static void mpu6050_task(void *arg)
 	{
 		ESP_LOGI(TAG, "TASK[%d] test cnt: %d", task_idx, cnt++);
 	    ret =  i2c_master_read_gyro(I2C_NUM_0, &gyrox_data, &gyroy_data, &gyroz_data);
-	    //xSemaphoreTake(print_mux, portMAX_DELAY);
 	    if (ret == ESP_ERR_TIMEOUT)
 	    {
 	    	ESP_LOGE(TAG, "I2C Timeout");
-	        } else if (ret == ESP_OK) {
-	        	 my_itoa((int16_t)gyrox_data,gyrox_ch);
-	        	 my_itoa((int16_t)gyroy_data,gyroy_ch);
-	        	 my_itoa((int16_t)gyroz_data,gyroz_ch);
-	        	 snprintf(&ch_mes_buf[0], sizeof ch_mes_buf, "gx:%s, gy: %s, gz: %s ", gyrox_ch, gyroy_ch, gyroz_ch);
-	        	 ESP_LOGI(TAG, "%s", ch_mes_buf);
-	        }
-	        else
-	        {
-	            ESP_LOGW(TAG, "%s: No ack, sensor not connected...skip...", esp_err_to_name(ret));
-	        }
-	        //xSemaphoreGive(print_mux);
-	        vTaskDelay((DELAY_TIME_BETWEEN_ITEMS_MS * (task_idx + 1)) / portTICK_RATE_MS);
-	        //---------------------------------------------------
 	    }
-	        vTaskDelete(NULL);
+	    else if (ret == ESP_OK)
+	    {
+	        xSemaphoreTake(char_mux, portMAX_DELAY);
+	        snprintf(&ch_mes_buf[0], sizeof ch_mes_buf, "gx:%i, gy: %i, gz: %i ",
+	        											(int16_t)gyrox_data, (int16_t)gyroy_data, (int16_t)gyroz_data);
+	        xSemaphoreGive(char_mux);
+	        ESP_LOGI(TAG, "%s", ch_mes_buf);
+	    }
+	    else
+	    {
+	    	ESP_LOGW(TAG, "%s: No ack, sensor not connected...skip...", esp_err_to_name(ret));
+	    }
+	    vTaskDelay((DELAY_TIME_BETWEEN_ITEMS_MS * (task_idx + 1)) / portTICK_RATE_MS);
+	    //---------------------------------------------------
+	}
+	vSemaphoreDelete(char_mux);
+	vTaskDelete(NULL);
 }
 
 static void mqtt_task(void *arg)
 {
 	int msg_id = 0;
-	//esp_mqtt_client_handle_t client = event->client;
 	while(1)
 	{
-		//xSemaphoreTake(mqtt_mux, portMAX_DELAY);
+		xSemaphoreTake(char_mux, portMAX_DELAY);
 		msg_id = esp_mqtt_client_publish(my_client, my_topic, ch_mes_buf, 0, 1, 0);
+		xSemaphoreGive(char_mux);
 		ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
-		//xSemaphoreGive(mqtt_mux);
 		vTaskDelay(MQTT_POST_DELAY / portTICK_PERIOD_MS);
 	}
-	vSemaphoreDelete(mqtt_mux);
+	vSemaphoreDelete(char_mux);
 	vTaskDelete(NULL);
 }
 
 void app_main(void)
 {
-	mqtt_mux = xSemaphoreCreateMutex();
+	char_mux = xSemaphoreCreateMutex();
     ESP_LOGI(TAG, "[APP] Startup..");
     ESP_LOGI(TAG, "[APP] Free memory: %d bytes", esp_get_free_heap_size());
     ESP_LOGI(TAG, "[APP] IDF version: %s", esp_get_idf_version());

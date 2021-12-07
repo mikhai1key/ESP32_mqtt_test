@@ -14,6 +14,8 @@
 #include "sdkconfig.h"
 #include "esp_err.h"
 
+// ============================= Definition ============================= //
+
 #define SD_MPU6050_DataRate_8KHz       0   /*!< Sample rate set to 8 kHz */
 #define SD_MPU6050_DataRate_4KHz       1   /*!< Sample rate set to 4 kHz */
 #define SD_MPU6050_DataRate_2KHz       3   /*!< Sample rate set to 2 kHz */
@@ -22,6 +24,8 @@
 #define SD_MPU6050_DataRate_250Hz      31  /*!< Sample rate set to 250 Hz */
 #define SD_MPU6050_DataRate_125Hz      63  /*!< Sample rate set to 125 Hz */
 #define SD_MPU6050_DataRate_100Hz      79  /*!< Sample rate set to 100 Hz */
+
+// ============================= Declaration ============================= //
 
 /**
  * @defgroup SD_MPU6050_Typedefs
@@ -73,17 +77,17 @@ typedef enum {
  */
 typedef struct  {
 	/* Private */
-	uint8_t Address;         /*!< I2C address of device. */
-	float Gyro_Mult;         /*!< Gyroscope corrector from raw data to "degrees/s". Only for private use */
-	float Acce_Mult;         /*!< Accelerometer corrector from raw data to "g". Only for private use */
+	uint8_t Address;         	/*!< I2C address of device. */
+	float Gyro_Mult;         	/*!< Gyroscope corrector from raw data to "degrees/s". Only for private use */
+	float Acce_Mult;         	/*!< Accelerometer corrector from raw data to "g". Only for private use */
 	/* Public */
-	int16_t Accelerometer_X; /*!< Accelerometer value X axis */
-	int16_t Accelerometer_Y; /*!< Accelerometer value Y axis */
-	int16_t Accelerometer_Z; /*!< Accelerometer value Z axis */
-	int16_t Gyroscope_X;     /*!< Gyroscope value X axis */
-	int16_t Gyroscope_Y;     /*!< Gyroscope value Y axis */
-	int16_t Gyroscope_Z;     /*!< Gyroscope value Z axis */
-	float   Temperature;       /*!< Temperature in degrees */
+	int16_t Accelerometer_X; 	/*!< Accelerometer value X axis */
+	int16_t Accelerometer_Y; 	/*!< Accelerometer value Y axis */
+	int16_t Accelerometer_Z; 	/*!< Accelerometer value Z axis */
+	int16_t Gyroscope_X;     	/*!< Gyroscope value X axis */
+	int16_t Gyroscope_Y;     	/*!< Gyroscope value Y axis */
+	int16_t Gyroscope_Z;     	/*!< Gyroscope value Z axis */
+	float   Temperature;       	/*!< Temperature in degrees */
 	//I2C_HandleTypeDef* I2Cx;
 } SD_MPU6050;
 
@@ -102,8 +106,6 @@ typedef union {
 	} F;
 	uint8_t Status;
 } SD_MPU6050_Interrupt;
-
-
 
 esp_err_t i2c_master_init(void);
 
